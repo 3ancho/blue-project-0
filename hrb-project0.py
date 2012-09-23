@@ -3,9 +3,25 @@ import numpy as np
 import sys
 import re
 
+# TO-DO use OO
+# TO-TO use argparse
+
+class InputFormatError(IOError):
+    """User defined Exception for formatting errors"""
+    def __init__(self, message):
+        self.message = message
+    def __str__(self):
+        return repr(self.message)
+
+class MatrixNotInvertibleError(RuntimeError):
+    """User defined Exception for RuntimeErrors"""
+    def __init__(self, message):
+        self.message = message
+    def __str__(self):
+        return repr(self.message)
+        
 def parse_array(raw_data):
     """87.6549491771;59.8682503025;52.3886621673;44.5125050557;67.4679478072\n"""
-    # TO-DO, handle trailing delimiter
     b = []
     a = []
     last = None
@@ -14,7 +30,7 @@ def parse_array(raw_data):
     re_split = re.split
     for row in raw_data:
         a_row = re_split(r"\s*;\s*", row)
-        last = a_row[len(a_row) - 1]
+        last = a_row[len(a_row) - 1]    # this handles the trailing delimiter
         if not last: a_row.remove(last)
         # a_row -> ["1","2","3","4"]
         b.append(a_row.pop(len(a_row)-1))
@@ -23,11 +39,10 @@ def parse_array(raw_data):
             first_row = False
             length = len(a_row)
         elif length != len(a_row):
-            print "Matrix row size error"
-            sys.exit(1)
+            raise InputFormatError("Matrix row size error")
         
     if len(a) != len(a[0]):
-        print "Matrix size error"
+        sys.stderr.write("Matrix size error\n") 
         sys.exit(1)
 
     return a, b
@@ -37,12 +52,9 @@ def solve(a, b, p = False):
     try:
         x = np.linalg.solve(a, b)
     except ValueError:
-        print "Matrix value error"
-        sys.exit(1)
+        raise InputFormatError("Matrix value format error")
     except np.linalg.linalg.LinAlgError:
-        print "There is no solution"
-        sys.exit(0)
-
+        raise MatrixNotInvertibleError("Matrix singular error, no sulution")
     if p:
         for i in range(x.size):
             print '%6.3f' % x.item(i)
@@ -68,6 +80,7 @@ def main():
 
             # 2. the actual run
             raw_A, raw_b = parse_array(test_raw_data)
+            raw_b = raw_b * -1
 
             # 1. get profile
             cProfile.runctx("solve(raw_A, raw_b)", globals(), locals())
@@ -90,14 +103,14 @@ def main():
 
                 # 1. get profile
                 parse_time = Timer("parse_array(test_raw_data)", 
-                      "from __main__ import parse_array, test_raw_data").timeit(1)
+                      "from __main__ import parse_array, test_raw_data").timeit(10)
 
                 # 2. the actual run
                 raw_A, raw_b = parse_array(test_raw_data)
 
                 # 1. get profile
                 solve_time = Timer("solve(raw_A, raw_b)", 
-                      "from __main__ import solve, raw_A, raw_b").timeit(1)
+                      "from __main__ import solve, raw_A, raw_b").timeit(10)
                 # 2. the actual run
                 solve(raw_A, raw_b)
 
@@ -112,6 +125,7 @@ def main():
         raw_data = sys.stdin.readlines()
         raw_A, raw_b = parse_array(raw_data)
         solve(raw_A, raw_b, True)
+
 
 if __name__ == "__main__":
     main()
